@@ -29,12 +29,12 @@ class Contentvec(nn.Module):
 
         return self.hubert_model.final_proj(feats[0]).unsqueeze(0), feats
 
+input_model = ["contentvec_base", "chinese_hubert_base", "japanese_hubert_base", "hubert_base", "korean_hubert_base", "portuguese_hubert_base"]
 
+for m in input_model:
+    output_model = m + ".onnx"
 
-input_model = "contentvec.bin"
-output_model = "contentvec.onnx"
+    torch.onnx.export(Contentvec(m), (torch.randn(1, 16384, dtype=torch.float32, device="cpu").clip(min=-1., max=1.).to("cpu")), output_model, do_constant_folding=False, opset_version=17, verbose=False, input_names=["feats"], output_names=["feats_9", "feats_12"], dynamic_axes={"feats": [1]})
+    model, _ = onnxsim.simplify(output_model)
 
-torch.onnx.export(Contentvec(input_model), (torch.randn(1, 16384, dtype=torch.float32, device="cpu").clip(min=-1., max=1.).to("cpu")), output_model, do_constant_folding=False, opset_version=17, verbose=False, input_names=["feats"], output_names=["feats_9", "feats_12"], dynamic_axes={"feats": [1]})
-model, _ = onnxsim.simplify(output_model)
-
-onnx.save(model, output_model)
+    onnx.save(model, output_model)
