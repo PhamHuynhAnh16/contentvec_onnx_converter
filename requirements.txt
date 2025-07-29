@@ -1,7 +1,9 @@
-torch==2.3.1
-librosa>=0.10.2
-soundfile>=0.13.0
+onnx
+torch
+librosa
 onnxsim
+soundfile
+omegaconf
 transformers
 onnxruntime; sys_platform == 'darwin'
 onnxruntime-gpu; sys_platform != 'darwin'

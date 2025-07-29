@@ -29,7 +29,7 @@ class Contentvec(nn.Module):
 
         return self.hubert_model.final_proj(feats[0]).unsqueeze(0), feats
 
-input_model = ["contentvec_base", "chinese_hubert_base", "japanese_hubert_base", "hubert_base", "korean_hubert_base", "portuguese_hubert_base"]
+input_model = ["contentvec_base", "chinese_hubert_base", "japanese_hubert_base", "hubert_base", "korean_hubert_base", "portuguese_hubert_base", "vietnamese_hubert_base"]
 
 for m in input_model:
     output_model = m + ".onnx"

@@ -17,7 +17,7 @@ def get_providers():
     return providers
 
 def extract_features(model, feats, layer):
-    return torch.as_tensor(model.run(["feats_9", "feats_12"], {"feats": feats.detach().cpu().numpy()})[0 if layer == 9 else 1], dtype=torch.float32, device=feats.device)
+    return torch.as_tensor(model.run(["feats_9", "feats_12"], {"feats": feats.detach().cpu().numpy()})[int(layer != 9)], dtype=torch.float32, device=feats.device)
 
 def load_audio(file):
     audio, sr = sf.read(file)

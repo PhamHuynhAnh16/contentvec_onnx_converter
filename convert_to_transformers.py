@@ -1,13 +1,14 @@
 import torch
 import logging
 
-from fairseq import checkpoint_utils
+from converter_fairseq_to_onnx import load_model
 from transformers import HubertConfig, HubertModel
 
 logging.getLogger("fairseq").setLevel(logging.WARNING)
 logging.getLogger("torch.distributed.nn.jit.instantiator").setLevel(logging.WARNING)
 
-model_path = ["contentvec_base.pt", "chinese_hubert_base.pt", "japanese_hubert_base.pt", "hubert_base.pt", "korean_hubert_base.pt", "portuguese_hubert_base.pt"]
+
+model_path = ["contentvec_base.pt", "chinese_hubert_base.pt", "japanese_hubert_base.pt", "hubert_base.pt", "korean_hubert_base.pt", "portuguese_hubert_base.pt", "vietnamese_hubert_base"]
 
 class HubertModelWithFinalProj(HubertModel):
     def __init__(self, config):
@@ -15,9 +16,8 @@ class HubertModelWithFinalProj(HubertModel):
         self.final_proj = torch.nn.Linear(config.hidden_size, config.classifier_proj_size)
 
 for m in model_path:
-    models, _, _ = checkpoint_utils.load_model_ensemble_and_task([m], suffix="")
-    model = models[0]
-    model.eval()
+    model = load_model(m)
+    model = model.eval().to("cpu")
     model.eval()
 
     hubert = HubertModelWithFinalProj(HubertConfig())
