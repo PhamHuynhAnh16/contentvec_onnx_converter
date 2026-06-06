@@ -1,14 +1,19 @@
+import os
+import sys
 import torch
 import logging
 
-from converter_fairseq_to_onnx import load_model
 from transformers import HubertConfig, HubertModel
+
+sys.path.append(os.getcwd())
+
+from fairseq.fairseq import load_model
 
 logging.getLogger("fairseq").setLevel(logging.WARNING)
 logging.getLogger("torch.distributed.nn.jit.instantiator").setLevel(logging.WARNING)
 
 
-model_path = ["contentvec_base.pt", "chinese_hubert_base.pt", "japanese_hubert_base.pt", "hubert_base.pt", "korean_hubert_base.pt", "portuguese_hubert_base.pt", "vietnamese_hubert_base"]
+model_path = ["contentvec_base.pt", "chinese_hubert_base.pt", "japanese_hubert_base.pt", "hubert_base.pt", "korean_hubert_base.pt", "portuguese_hubert_base.pt", "vietnamese_hubert_base.pt"]
 
 class HubertModelWithFinalProj(HubertModel):
     def __init__(self, config):
@@ -16,9 +21,8 @@ class HubertModelWithFinalProj(HubertModel):
         self.final_proj = torch.nn.Linear(config.hidden_size, config.classifier_proj_size)
 
 for m in model_path:
-    model = load_model(m)
+    model = load_model(m, unsafe_weight_allow=True)
     model = model.eval().to("cpu")
-    model.eval()
 
     hubert = HubertModelWithFinalProj(HubertConfig())
     mapping = {"masked_spec_embed": "mask_emb", "encoder.layer_norm.bias": "encoder.layer_norm.bias", "encoder.layer_norm.weight": "encoder.layer_norm.weight", "encoder.pos_conv_embed.conv.bias": "encoder.pos_conv.0.bias", "encoder.pos_conv_embed.conv.weight_g": "encoder.pos_conv.0.weight_g", "encoder.pos_conv_embed.conv.weight_v": "encoder.pos_conv.0.weight_v", "feature_projection.layer_norm.bias": "layer_norm.bias", "feature_projection.layer_norm.weight": "layer_norm.weight", "feature_projection.projection.bias": "post_extract_proj.bias", "feature_projection.projection.weight": "post_extract_proj.weight", "final_proj.bias": "final_proj.bias", "final_proj.weight": "final_proj.weight"}
@@ -69,7 +73,6 @@ for m in model_path:
 
     with torch.no_grad():
         new_input = torch.randn(1, 16384)
-
         assert torch.allclose(hubert(new_input, output_hidden_states=True)["hidden_states"][12], model.extract_features(**{"source": new_input, "padding_mask": torch.zeros(1, 16384, dtype=torch.bool), "output_layer": 12})[0], atol=1e-3)
 
     print("Đã vượt qua kiểm tra. Bắt đầu xuất mô hình")

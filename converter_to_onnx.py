@@ -1,6 +1,6 @@
 import onnx
 import torch
-import onnxsim
+import onnxslim
 
 from torch import nn
 from transformers import HubertModel
@@ -15,26 +15,39 @@ class Contentvec(nn.Module):
     def __init__(self, embedders):
         super(Contentvec, self).__init__()
         hubert_model = HubertModelWithFinalProj.from_pretrained(embedders)
-        hubert_model.to("cpu")
+        self.hubert_model = hubert_model.float().eval()
 
-        hubert_model = hubert_model.float()
-        self.hubert_model = hubert_model.eval()
+    def forward(self, feats, output_layer):
+        feats_out = torch.index_select(torch.stack(self.hubert_model.forward(feats, output_hidden_states=True, return_dict=True).hidden_states, dim=0), dim=0, index=output_layer.unsqueeze(0)).squeeze(0)
+        feats_proj = self.hubert_model.final_proj(feats_out)
+        return feats_out, feats_proj
 
-    def forward(self, feats):
-        feats = feats.view(-1)
-        feats = feats.mean(-1) if feats.dim() == 2 else feats
-
-        assert feats.dim() == 1, feats.dim()
-        feats = self.hubert_model(feats.view(1, -1).to("cpu"))["last_hidden_state"]
-
-        return self.hubert_model.final_proj(feats[0]).unsqueeze(0), feats
-
-input_model = ["contentvec_base", "chinese_hubert_base", "japanese_hubert_base", "hubert_base", "korean_hubert_base", "portuguese_hubert_base", "vietnamese_hubert_base"]
+input_model = ["contentvec_base", "chinese_hubert_base", "japanese_hubert_base", "hubert_base", "korean_hubert_base", "portuguese_hubert_base", "vietnamese_hubert_base", "spin-v1", "spin-v2"]
+device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 for m in input_model:
     output_model = m + ".onnx"
+    print(f"Exporting: {m}...")
 
-    torch.onnx.export(Contentvec(m), (torch.randn(1, 16384, dtype=torch.float32, device="cpu").clip(min=-1., max=1.).to("cpu")), output_model, do_constant_folding=False, opset_version=17, verbose=False, input_names=["feats"], output_names=["feats_9", "feats_12"], dynamic_axes={"feats": [1]})
-    model, _ = onnxsim.simplify(output_model)
+    feats = torch.randn(1, 16384, dtype=torch.float32, device=device).clip(min=-1., max=1.)
+    layer = torch.tensor(12, device=device, dtype=torch.int64)
 
+    torch.onnx.export(
+        Contentvec(m).to(device), 
+        (feats, layer), 
+        output_model, 
+        do_constant_folding=True,
+        opset_version=17, 
+        verbose=False, 
+        input_names=["feats", "output_layer"], 
+        output_names=["feats", "feats_proj"], 
+        dynamic_axes={
+            "feats": {1: "sequence_length"},
+            "feats_out": {1: "sequence_length"},
+            "feats_proj": {1: "sequence_length"},
+        }
+    )
+
+    model = onnxslim.slim(output_model)
     onnx.save(model, output_model)
+    print(f"Succeed: {output_model} saved and simplified!")
